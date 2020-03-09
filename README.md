@@ -2,6 +2,7 @@
 # ElvUI Updater
 
 A simple windows service to check and update ElvUI automatically every X minutes.
+
 (Only World of Warcraft Classic at the moment!)
 
 ## Getting Started
