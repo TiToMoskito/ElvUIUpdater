@@ -1,2 +1,5 @@
 src/bin/
 src/obj/
+.vs/
+bin/
+obj/

@@ -41,11 +41,21 @@ namespace ElvUIUpdate
             key.Value = "60";
             data["Settings"].AddKey(key);
 
+            key = new KeyData("Autostart");
+            key.Comments.Add("Should the program start with Windows? (False = off | True = on)");
+            key.Value = "False";
+            data["Settings"].AddKey(key);
+
+            key = new KeyData("AutostartCheck");
+            key.Comments.Add("Should checking process start automatically? (False = off | True = on)");
+            key.Value = "False";
+            data["Settings"].AddKey(key);
+
             parser.WriteFile(filePath, data);
         }
 
         public void Write(string section, string key, string value)
-        {            
+        {
             data[section][key] = value;
         }
 
@@ -61,9 +71,7 @@ namespace ElvUIUpdate
 
         public void Dispose()
         {
-            Dispose();
             GC.SuppressFinalize(this);
-
             parser.WriteFile(filePath, data);
         }
     }

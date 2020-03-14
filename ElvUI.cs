@@ -15,7 +15,6 @@ namespace ElvUIUpdate
         Regex regExHTMLContentClassic = new Regex(@"(<strong>(.*?)<\/strong>)", RegexOptions.Compiled);
         Regex regExHTMLContentRetail = new Regex(@"(<u><b>(.*?)<\/b><\/u>)", RegexOptions.Compiled);
         WebClient client;
-        Config config;
 
         float localClassicVersion = 0f;
         float localRetailVersion = 0f;
@@ -31,7 +30,6 @@ namespace ElvUIUpdate
 
         int interval = 60;
 
-        string ConfigFilePath { get; set; }
         string DownloadFolderPath { get; set; }
         string DownloadFilePath { get; set; }
 
@@ -41,23 +39,31 @@ namespace ElvUIUpdate
         string RetailAddonsPath { get; set; }
         string RetailElvUIPath { get; set; }
 
+        public bool isRunning { get; set; }
+
+        public delegate void PrintUpdate(string _message, string _title, bool _showBaloon);
+        public event PrintUpdate printUpdateEvent;
+
+        public delegate void IsRunning(bool _running);
+        public event IsRunning isRunningEvent;
+
+        //==========================================================================
+
         public ElvUI()
         {
-            ConfigFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.ini");
-
-            config = new Config(ConfigFilePath);
-
-            ClassicAddonsPath = config.Read("Settings", "Path") + @"\_classic_\Interface\AddOns";
+            ClassicAddonsPath = ElvUIUpdateApplication.Config.Read("Settings", "Path") + @"\_classic_\Interface\AddOns";
             ClassicElvUIPath = ClassicAddonsPath + @"\ElvUI\ElvUI.toc";
 
-            RetailAddonsPath = config.Read("Settings", "Path") + @"\_retail_\Interface\Addons";
+            RetailAddonsPath = ElvUIUpdateApplication.Config.Read("Settings", "Path") + @"\_retail_\Interface\Addons";
             RetailElvUIPath = RetailAddonsPath + @"\ElvUI\ElvUI.toc";
 
             DownloadFolderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "temp");
             DownloadFilePath = Path.Combine(DownloadFolderPath, "elvui.zip");
 
-            interval = int.Parse(config.Read("Settings", "Interval"));
+            interval = int.Parse(ElvUIUpdateApplication.Config.Read("Settings", "Interval"));
         }
+
+        //==========================================================================
 
         public void Start()
         {
@@ -72,22 +78,37 @@ namespace ElvUIUpdate
 
             //retailThread = new Thread(new ThreadStart(CheckForRetail));
             //retailThread.Start();
+
+            WriteUpdate("Start checking for ElvUI updates...", "General", false);
+
+            isRunning = true;
+            if (isRunningEvent != null)
+                isRunningEvent(true);
         }
+
+        //==========================================================================
 
         public void Stop()
         {
-            config.Dispose();
+            ElvUIUpdateApplication.Config.Dispose();
             classicThread.Abort();
-            retailThread.Abort();
+            //retailThread.Abort();
             CleanDownloadFolder();
+            WriteUpdate("Stopping...", "General", false);
+
+            isRunning = false;
+            if (isRunningEvent != null)
+                isRunningEvent(false);
         }
+
+        //==========================================================================
 
         void CheckForRetail()
         {
             while (true)
             {
                 ReadLocalRetailVersion();
-                ReadRemoteRetailVersion();
+                ReadRemoteRetailVersion();                
 
                 if (newRetailVersion)
                 {
@@ -106,8 +127,10 @@ namespace ElvUIUpdate
             }
         }
 
+        //==========================================================================
+
         void CheckForClassic()
-        {
+        {           
             while (true)
             {
                 ReadLocalClassicVersion();
@@ -115,6 +138,8 @@ namespace ElvUIUpdate
 
                 if (newClassicVersion)
                 {
+                    WriteUpdate("New ElvUI update found, start updating...", "Classic", true);
+
                     CleanDownloadFolder();
 
                     Directory.Delete(ClassicAddonsPath + @"\ElvUI", true);
@@ -129,6 +154,8 @@ namespace ElvUIUpdate
                 Thread.Sleep(interval * 60000);
             }
         }
+        
+        //==========================================================================
 
         void ReadLocalClassicVersion()
         {
@@ -136,11 +163,15 @@ namespace ElvUIUpdate
             localClassicVersion = Single.Parse(localVers.Value, CultureInfo.InvariantCulture);
         }
 
+        //==========================================================================
+
         void ReadLocalRetailVersion()
         {
             Match localVers = regExVersion.Match(File.ReadAllText(RetailElvUIPath));
             localRetailVersion = Single.Parse(localVers.Value, CultureInfo.InvariantCulture);
         }
+
+        //==========================================================================
 
         void ReadRemoteClassicVersion()
         {
@@ -151,6 +182,8 @@ namespace ElvUIUpdate
             newClassicVersion = (remoteClassicVersion > localClassicVersion);
         }
 
+        //==========================================================================
+
         void ReadRemoteRetailVersion()
         {
             client = new WebClient();
@@ -160,21 +193,30 @@ namespace ElvUIUpdate
             newClassicVersion = (remoteClassicVersion > localClassicVersion);
         }
 
+        //==========================================================================
+
         void client_DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs e)
         {
             double bytesIn = double.Parse(e.BytesReceived.ToString());
             double totalBytes = double.Parse(e.TotalBytesToReceive.ToString());
             double percentage = bytesIn / totalBytes * 100;
             //Console.Write("Downloaded " + e.BytesReceived + " of " + e.TotalBytesToReceive);
+            WriteUpdate(string.Format("{0} % downloaded", string.Format("{0:0.##}", percentage)));
         }
+
+        //==========================================================================
 
         void client_DownloadFileCompleted(object sender, AsyncCompletedEventArgs e)
         {
+            WriteUpdate("Download finished, starting to extract", "Classic", false);
             using (ZipArchive archive = ZipFile.Open(DownloadFilePath, ZipArchiveMode.Update))
             {
                 archive.ExtractToDirectory(ClassicAddonsPath);
-            }                  
+            }
+            WriteUpdate("Successfully updated...", "Classic", true);
         }
+
+        //==========================================================================
 
         void CleanDownloadFolder()
         {
@@ -185,5 +227,14 @@ namespace ElvUIUpdate
             foreach (DirectoryInfo dir in di.GetDirectories())
                 dir.Delete(true);
         }
+
+        //==========================================================================
+
+        void WriteUpdate(string _message, string _game = "Classic", bool _showBaloon = false)
+        {
+            if (printUpdateEvent != null)
+                printUpdateEvent(_message, _game, _showBaloon);
+        }
     }
+
 }
